@@ -7,15 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import net.minecraft.server.v1_7_R1.Village;
-import net.uvnode.uvvillagers.DynmapManager;
-import net.uvnode.uvvillagers.LanguageManager;
-import net.uvnode.uvvillagers.SiegeManager;
-import net.uvnode.uvvillagers.UVTimeEvent;
-import net.uvnode.uvvillagers.UVTimeEventType;
-import net.uvnode.uvvillagers.UVVillage;
-import net.uvnode.uvvillagers.UVVillageRank;
-import net.uvnode.uvvillagers.VillageManager;
+import net.minecraft.server.v1_7_R3.Village;
 import net.uvnode.uvvillagers.util.FileManager;
 
 import org.bukkit.ChatColor;
@@ -26,14 +18,13 @@ import org.bukkit.block.Chest;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.craftbukkit.v1_7_R1.entity.CraftVillager;
+import org.bukkit.craftbukkit.v1_7_R3.entity.CraftVillager;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.ItemFrame;
@@ -373,19 +364,56 @@ public final class UVVillagers extends JavaPlugin implements Listener {
                         }
                     break;
                     case "startsiege":
-                        if (hasPerms(sender,"uvv.admin")) {
-                        	if(args.length > 1) {
-                        		World world = getServer().getWorld(args[1]);
-                        		if (world != null) {
-                        			sender.sendMessage("Starting a siege in "+world+"...");
-                        			startSiege(world);
-                        		} else {
-                        			sender.sendMessage(ChatColor.RED+"Unable to start a siege. '"+world+"' does not exist...");
-                        		}
-                        	} else {
-                        		sender.sendMessage("Starting a siege on all worlds...");
-                        		startSiege();
-                        	}
+                        if (hasPerms(sender,"uvv.startsiege")) {
+                            World world;
+                            switch (args.length) {
+                                case 1: // 1 arg means no details were specified. Start sieges on all worlds.
+                                    sender.sendMessage("Starting a siege on all worlds...");
+                                    startSiege();
+                                    break;
+                                case 2: // 2 args means a world was specified. Start siege in one world.
+                                    world = getServer().getWorld(args[1]);
+                                    if (world != null) {
+                                            sender.sendMessage("Starting a siege in "+world+"...");
+                                            startSiege(world);
+                                    } else {
+                                            sender.sendMessage(ChatColor.RED+"Unable to start a siege. '"+world+"' does not exist...");
+                                    }
+                                    break;
+                                default: // 3 or more args means a village was specified. Concat the name and start a siege there.
+                                    world = getServer().getWorld(args[1]);
+                                    UVVillage village = null;
+                                    
+                                    if (world != null) {
+                                        String villageName = "";
+                                        for (int i = 2; i < args.length; i++)
+                                            villageName += " " + args[i];
+                                        villageName = villageName.trim();
+                                        if (villageName.equalsIgnoreCase("current")) {
+                                            if (sender instanceof Player) {
+                                                village = _villageManager.getClosestVillageToLocation(((Player)sender).getLocation(), 0);
+                                            } else {
+                                                sender.sendMessage(ChatColor.RED+"You can't use the 'current' syntax as console.");
+                                            }
+                                        } else {
+                                            village = _villageManager.getVillageByKey(world, villageName);
+                                        }
+                                        if (village != null) {
+                                            sender.sendMessage("Starting a siege in "+village.getName()+"...");
+                                            startSiege(village);
+                                        } else {
+                                            if (villageName == "current") {
+                                                sender.sendMessage(ChatColor.RED+"You're not in a village!");
+                                            } else {
+                                                sender.sendMessage(ChatColor.RED+"Unable to start a siege. '"+villageName+"' does not exist in '"+world.getName()+"'...");
+                                            }
+                                        }
+                                    } else {
+                                            sender.sendMessage(ChatColor.RED+"Unable to start a siege. '"+world.getName()+"' does not exist...");
+                                    }
+                                    break;
+                                    
+                            }
                         }
                     break;
                     case "siegeinfo":
@@ -411,26 +439,26 @@ public final class UVVillagers extends JavaPlugin implements Listener {
                         }
                     break;
                     case "list":
-                        if (hasPerms(sender,"uvv.villiageinfo")) {
+                        if (hasPerms(sender,"uvv.villageinfo")) {
                             sender.sendMessage(ChatColor.GOLD + " - UVVillagers Village List - ");
                             sendVillageInfo(sender, _villageManager.getAllVillages());
                         }
                     break;
                     case "loaded":
-                        if (hasPerms(sender,"uvv.villiageinfo")) {
+                        if (hasPerms(sender,"uvv.villageinfo")) {
                             sender.sendMessage(ChatColor.GOLD + " - UVVillagers Villages Loaded - ");
                             sendVillageInfo(sender, _villageManager.getLoadedVillages());
                         }
                     break;
                     case "nearby":
-                        if (hasPerms(sender,"uvv.villiageinfo", false)) {
+                        if (hasPerms(sender,"uvv.villageinfo", false)) {
                             Player p = (Player) sender;
                             sender.sendMessage(ChatColor.GOLD + " - UVVillagers Nearby Villages - ");
                             sendVillageInfo(sender, _villageManager.getVillagesNearLocation(p.getLocation(), _tributeRange));
                         }
                     break;
                     case "current":
-                        if (hasPerms(sender,"uvv.villiageinfo", false)) {
+                        if (hasPerms(sender,"uvv.villageinfo", false)) {
                             Player p = (Player) sender;
                             sender.sendMessage(ChatColor.GOLD + " - UVVillagers Current Village - ");
                             sendVillageInfo(sender, _villageManager.getClosestVillageToLocation(p.getLocation(), _tributeRange));
@@ -458,7 +486,7 @@ public final class UVVillagers extends JavaPlugin implements Listener {
                         }
                     break;
                     case "rename":
-                        if (hasPerms(sender,"uvv.admin", false)) {
+                        if (hasPerms(sender,"uvv.rename", false)) {
                             sender.sendMessage(ChatColor.GOLD + " - UVVillagers Rename Village - ");
                             Player p = (Player) sender;
                             if (args.length > 1) {
@@ -525,8 +553,13 @@ public final class UVVillagers extends JavaPlugin implements Listener {
         if (hasPerms(sender,"uvv.siegeinfo")) {
             sender.sendMessage(ChatColor.GRAY + " /uvv siegeinfo - displays siege status data");
         }
+        if (hasPerms(sender,"uvv.startsiege")) {
+            sender.sendMessage(ChatColor.GRAY + " /uvv startsiege - starts a siege in a random village in each valid world. no tribute bonus granted if it's daytime");
+            sender.sendMessage(ChatColor.GRAY + " /uvv startsiege <world> - starts a siege in a random village in the specified world");
+            sender.sendMessage(ChatColor.GRAY + " /uvv startsiege <world> <village name> - starts a siege in a specific village");
+            sender.sendMessage(ChatColor.GRAY + " /uvv startsiege <world> current - starts a siege in your current village");
+        }
         if (hasPerms(sender,"uvv.admin")) {
-            sender.sendMessage(ChatColor.GRAY + " /uvv startsiege - forces a siege to start. no tribute bonus granted if it's daytime.");
             sender.sendMessage(ChatColor.GRAY + " /uvv setserver - toggles the current village between player-/server-owned");
         }
     }
@@ -887,14 +920,18 @@ public final class UVVillagers extends JavaPlugin implements Listener {
     }
     
     
+    /**
+     * Forces a siege to start
+     */
     private void startSiege() {
         List<World> worlds = getServer().getWorlds();
         for (World world : worlds) {
             startSiege(world);
         }
     }
+    
     /**
-     * Forces a siege to start
+     * Forces a siege to start in a specific world
      */
     private void startSiege(World world) {
         if (!isWorldEnabled(world.getName())) return;
@@ -910,6 +947,25 @@ public final class UVVillagers extends JavaPlugin implements Listener {
             _siegeManager.startSiege(location, village);
         } else {
             debug(String.format("No villages were loaded in %s. No siege tonight!",world.getName()));
+        }
+    }
+    
+    /**
+     * Forces a siege to start in a specific village
+     */
+    private void startSiege(UVVillage village) {
+        World world = village.getLocation().getWorld();
+        if (!isWorldEnabled(world.getName())) return;
+        Map<String, UVVillage> loadedVillages = _villageManager.getLoadedVillages(world);
+        if (loadedVillages.containsValue(village)) {
+            int xOffset = getRandomNumber(village.getSize() / -2, village.getSize() / 2);
+            int zOffset = getRandomNumber(village.getSize() / -2, village.getSize() / 2);
+            debug(String.format("Random offset X=%d Y=%d", xOffset, zOffset));
+            Location location = village.getLocation().clone().add(xOffset, 0, zOffset);
+            debug(String.format("Firing up a siege at %s in %s (%s)!", location.toString(), village.getName(), village.getLocation().toString()));
+            _siegeManager.startSiege(location, village);
+        } else {
+            debug(String.format("%s was not loaded. No siege tonight!", village.getName()));
         }
     }
     
@@ -996,7 +1052,7 @@ public final class UVVillagers extends JavaPlugin implements Listener {
                                 }
                             }
                         }
-                        if (_tributeMethod.equalsIgnoreCase("chest") && village.getValue().hasChest()) {
+                        if (_tributeMethod.equalsIgnoreCase("chest") && village.getValue().hasChest() && tributeAmount > 0) {
                             ItemStack items;
                             if (_emeraldTributeItem > 0 && Material.getMaterial(_emeraldTributeItem) != null) {
                                 items = new ItemStack(Material.getMaterial(_emeraldTributeItem), tributeAmount);
